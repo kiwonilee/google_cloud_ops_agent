@@ -198,16 +198,3 @@ uv run agent_platform/skill_registry.py retrieve --query "GKE node upgrade" --to
 ```bash
 uv run agent_platform/skill_registry.py import --github-url "https://github.com/google/skills"
 ```
-
----
-
-
----
-
-## 🧹 대화 세션 히스토리 초기화 (개발 디버깅용)
-
-로컬에서 지속적인 빠른 테스트를 거치다가 대화 히스토리 캐시 데이터가 너무 많아져 완전히 리셋하고 깨끗한 첫 턴 상태로 돌리고 싶다면:
-```bash
-# google_cloud_ops_agent 폴더 내부에서 실행
-rm -rf .adk/
-```
