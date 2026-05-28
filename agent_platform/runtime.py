@@ -12,7 +12,7 @@ if project_parent not in sys.path:
 load_dotenv(os.path.join(project_parent, "google_cloud_ops_agent/.env"))
 
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "gcp-sandbox-kwlee")
-LOCATION = os.getenv("GCP_RESOURCES_LOCATION", "us-central1")
+LOCATION = os.getenv("GCP_RESOURCES_LOCATION", "us-central1")  # Agent Engine is deployed regionally
 
 # CLIENT & AGENT PLATFORM INITIALIZATION
 import vertexai
@@ -24,7 +24,7 @@ client = vertexai.Client(
 
 # Import the SRE root agent using the fully qualified package namespace
 from google_cloud_ops_agent.agent import app
-adk_app = AdkApp(agent=app)
+adk_app = AdkApp(app=app)
 
 # -----------------------------------------------------------------------------
 # Environment variables dynamically loaded from .env
@@ -41,7 +41,11 @@ env_vars = {key: os.environ[key] for key in sre_env_keys if key in os.environ}
 # -----------------------------------------------------------------------------
 # Explicitly append Production Runtime URIs to the env_vars payload dictionary
 # -----------------------------------------------------------------------------
+env_vars["GOOGLE_CLOUD_LOCATION"] = "global"
+
+env_vars["ADK_DISABLE_JSON_SCHEMA_FOR_FUNC_DECL"] = "1"
 env_vars["ADK_ENABLE_FEATURES"] = "SKILL_TOOLSET"
+
 env_vars["ADK_SESSION_SERVICE_URI"] = "agentengine://"
 env_vars["ADK_MEMORY_SERVICE_URI"] = "agentengine://"
 env_vars["ADK_ARTIFACT_SERVICE_URI"] = "gs://adk-sandbox-bucket"
@@ -50,7 +54,7 @@ requirements_list = [
     "google-genai",
     "google-auth",
     "google-adk",
-    "google-cloud-aiplatform[agent_engines,adk]",
+    "google-cloud-aiplatform[agent_engines]",
     "python-dotenv",
     "pydantic",
     "cloudpickle",
@@ -60,6 +64,7 @@ requirements_list = [
 
 # Construct the custom service account email and staging bucket dynamically
 service_account_email = f"google-cloud-ops-agent-sa@{PROJECT_ID}.iam.gserviceaccount.com"
+staging_bucket_uri = os.environ.get("ADK_ARTIFACT_SERVICE_URI", f"gs://adk-sandbox-bucket")
 
 print(f"Deploying 'google_cloud_ops_agent' to AgentPlatform...")
 
