@@ -1,18 +1,8 @@
 import os
 import sys
-import vertexai
 from dotenv import load_dotenv
 from vertexai.agent_engines import AdkApp
 
-# -----------------------------------------------------------------------------
-# Dynamic Working Directory Alignment
-# -----------------------------------------------------------------------------
-# Dynamically change the current working directory (CWD) to the parent folder
-# of the project root (~/workspace/agents/). This guarantees that:
-# 1. The local package imports use the canonical 'google_cloud_ops_agent.agent' path.
-# 2. The GenAI SDK packages the extra files preserving the 'google_cloud_ops_agent/' namespace.
-# 3. The remote Control Plane successfully unpickles the agent with zero ModuleNotFoundErrors.
-# -----------------------------------------------------------------------------
 project_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 os.chdir(project_parent)
 if project_parent not in sys.path:
@@ -22,16 +12,19 @@ if project_parent not in sys.path:
 load_dotenv(os.path.join(project_parent, "google_cloud_ops_agent/.env"))
 
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "gcp-sandbox-kwlee")
-LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")  # Agent Engine is deployed regionally
+LOCATION = os.getenv("GCP_RESOURCES_LOCATION", "us-central1")
 
-# 1. Initialize the modern AgentPlatform Client
-client = vertexai.Client(project=PROJECT_ID, location=LOCATION)
+# CLIENT & AGENT PLATFORM INITIALIZATION
+import vertexai
+
+client = vertexai.Client(
+    project=PROJECT_ID, 
+    location=LOCATION
+)
 
 # Import the SRE root agent using the fully qualified package namespace
-from google_cloud_ops_agent.agent import root_agent
-
-# 2. Wrap SRE agent inside AdkApp wrapper
-adk_app = AdkApp(agent=root_agent)
+from google_cloud_ops_agent.agent import app
+adk_app = AdkApp(agent=app)
 
 # -----------------------------------------------------------------------------
 # Environment variables dynamically loaded from .env
@@ -53,35 +46,31 @@ env_vars["ADK_SESSION_SERVICE_URI"] = "agentengine://"
 env_vars["ADK_MEMORY_SERVICE_URI"] = "agentengine://"
 env_vars["ADK_ARTIFACT_SERVICE_URI"] = "gs://adk-sandbox-bucket"
 
-# -----------------------------------------------------------------------------
-# Production Single-Step Deployment Flow (Simultaneous Session & Memory Activation)
-# -----------------------------------------------------------------------------
-print(f"Deploying 'google_cloud_ops_agent' to AgentPlatform in a single step...")
+requirements_list = [
+    "google-genai",
+    "google-auth",
+    "google-adk",
+    "google-cloud-aiplatform[agent_engines,adk]",
+    "python-dotenv",
+    "pydantic",
+    "cloudpickle",
+    "mcp>=1.27.1",
+    "pyyaml>=6.0.3",
+]
 
 # Construct the custom service account email and staging bucket dynamically
 service_account_email = f"google-cloud-ops-agent-sa@{PROJECT_ID}.iam.gserviceaccount.com"
-staging_bucket_uri = os.environ.get("ADK_ARTIFACT_SERVICE_URI", f"gs://adk-sandbox-bucket")
 
-# Deploy and activate session and memory services simultaneously using the official agent=adk_app specs
+print(f"Deploying 'google_cloud_ops_agent' to AgentPlatform...")
+
+# Create a new resource with your agent deployed to Agent Runtime.
 remote_agent = client.agent_engines.create(
     agent=adk_app,
     config={
         "display_name": "Google Cloud Ops Agent",
         "description": "Managed AI Ops Architect for GCP SRE Operations",
-        "requirements": [
-            "google-genai",
-            "google-auth",
-            "google-adk",
-            "google-cloud-aiplatform[agent_engines,adk]",
-            "python-dotenv",
-            "pydantic",
-            "cloudpickle",
-        ],
-        "extra_packages": [
-            "google_cloud_ops_agent/agent.py",
-            "google_cloud_ops_agent/tools.py",
-            "google_cloud_ops_agent/skills.py",
-        ],
+        "requirements": requirements_list,
+        "extra_packages": ["google_cloud_ops_agent"],
         "env_vars": env_vars,
         "service_account": service_account_email,
         "staging_bucket": staging_bucket_uri,
