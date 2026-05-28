@@ -45,16 +45,10 @@ You are the Google Cloud Ops Architect. You will directly utilize the core GCP s
 - **Korean Response Mandatory**: All explanations, analysis reports, and next-step recommendations must be written in professional and polite Korean.
 """
 
-
-# -----------------------------------------------------------------------------
-# 1. Callbacks
-# -----------------------------------------------------------------------------
-async def add_session_to_memory_callback(callback_context: CallbackContext):
-    """Ensures conversation continuity by triggering memory generation."""
-    try:
-        await callback_context.add_session_to_memory()
-    except ValueError:
-        pass
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/memory-bank/adk-quickstart#memory-generation-callback
+async def generate_memories_callback(callback_context: CallbackContext):    
+    await callback_context.add_session_to_memory()
+    return None
 
 
 # -----------------------------------------------------------------------------
@@ -62,10 +56,10 @@ async def add_session_to_memory_callback(callback_context: CallbackContext):
 # -----------------------------------------------------------------------------
 root_agent = Agent(
     name='google_cloud_ops_agent',
-    model=GEMINI_MODEL,  # Declarative FQN string forces the global endpoint natively!
+    model=GEMINI_MODEL,
     instruction=SYSTEM_INSTRUCTION,
     description='AI Ops Agent for GCP Environment Management',
-    after_agent_callback=[add_session_to_memory_callback],
+    after_agent_callback=generate_memories_callback,
     tools=[
         PreloadMemoryTool(),
         *tools.active_mcp_toolsets,
