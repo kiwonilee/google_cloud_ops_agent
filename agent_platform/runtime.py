@@ -37,7 +37,6 @@ adk_app = AdkApp(agent=root_agent)
 # Environment variables dynamically loaded from .env
 # -----------------------------------------------------------------------------
 sre_env_keys = [
-    "GEMINI_MODEL",
     "GOOGLE_GENAI_USE_VERTEXAI",
     "GCP_RESOURCES_LOCATION",
     "GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY",

@@ -22,7 +22,7 @@ logger = logging.getLogger("google_adk.gcp_ops_agent.agent")
 # Declarative SOT Model Resource URI (Explicitly force global in Python to bypass us-central1 limits)
 # -----------------------------------------------------------------------------
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "gcp-sandbox-kwlee")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_MODEL = "gemini-3.5-flash"
 
 SYSTEM_INSTRUCTION = """# SYSTEM INSTRUCTION: Google Cloud AI Ops Orchestrator
 

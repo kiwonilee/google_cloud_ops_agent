@@ -35,23 +35,22 @@ google_cloud_ops_agent/
 ## ⚙️ 초기 설치 및 환경 설정
 
 ### 1. 환경 설정 파일 생성 (`.env`)
-`google_cloud_ops_agent/` 폴더 루트에 `.env` 파일을 생성하고 로컬 프로젝트 변수와 타깃 모델 정보를 입력합니다:
+`google_cloud_ops_agent/` 폴더 루트에 제공된 `.env.template` 파일을 복사하여 `.env` 파일을 생성하고 필요한 환경 변수 값을 설정합니다.
+또는 아래 예시와 같이 변수들을 직접 입력할 수 있습니다:
 
 ```ini
 # 구글 클라우드 프로젝트 환경 설정
-GOOGLE_CLOUD_PROJECT="gcp-sandbox-kwlee"
+GOOGLE_CLOUD_PROJECT="your-googlecloud-project"
 GOOGLE_CLOUD_LOCATION="global"
 GOOGLE_GENAI_USE_VERTEXAI=TRUE
 
 # SRE 리소스 및 스킬 레지스트리 리전 설정
 GCP_RESOURCES_LOCATION="us-central1"
 
-# Gemini 모델 (글로벌 3.5 플래시 모델 사용 권장)
-GEMINI_MODEL="gemini-3.5-flash"
-
-# 옵션: 퍼블릭 권한 스코프 제약 우회용 커스텀 MCP 엔드포인트 주소
-# MCP_ENDPOINT_CLOUD_RUN="https://run.googleapis.com/mcp"
-# MCP_ENDPOINT_KUBERNETES_ENGINE="https://container.googleapis.com/mcp"
+# Telemetry for ADK
+GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true
+OTEL_SEMCONV_STABILITY_OPT_IN="gen_ai_latest_experimental"
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=EVENT_ONLY
 ```
 
 ### 2. 가상환경 구동 및 의존성 검증
@@ -59,17 +58,31 @@ GEMINI_MODEL="gemini-3.5-flash"
 
 ```bash
 # 가상 환경 구동
+uv sync
 source .venv/bin/activate
-
-# ADK 커맨드라인 도구 정상 설치 확인
-adk --help
 ```
 
+
+<br/>
+
+---
 ---
 
-## 💻 로컬 기동 및 모니터링 명령어
+<br/>
+
+## 💻 로컬 실행
 
 대화형 AI Ops 에이전트를 기동하고 상호작용하려면 `google_cloud_ops_agent/` 디렉터리 내부에서 아래 명령어를 직접 날려 가동합니다.
+
+
+## ⚙️ 핵심 피처 플래그(Feature Flags) 동작 원리 기술 설명
+
+*   **`--disable_features=JSON_SCHEMA_FOR_FUNC_DECL`** *(치명적인 컨텍스트 폭발 우회 플래그)*:
+    *   **도입 이유**: ADK의 실험용 기능인 JSON 스키마 자동 파서 모듈은 GKE나 Kubernetes API처럼 무한 루프성 Pydantic 계층 구조를 지닌 리소스 명세를 만날 경우, 이를 해석하기 위해 스키마를 무한대로 복제/전개하는 치명적인 버그가 있습니다.
+    *   **효과**: 이 옵션을 반드시 기입해 꺼주면 에이전트가 표준 평탄형(Flat) 스키마 선언 구조로 안정적으로 동작하여, 기존의 프롬프트 토큰 누수량(**약 130만 토큰**)을 미세한 깃털 등급 수준(**약 1만 토큰**)으로 극적으로 다이어트시켜 에러 없는 엄청난 초고속 응답 속도를 보장합니다.
+*   **`--enable_features=SKILL_TOOLSET`** *(스킬 탐색기)*:
+    *   **도입 이유**: 엔터프라이즈 스킬 셋 가동용 모듈을 활성화합니다.
+    *   **효과**: 오케스트레이터 에이전트에게 스킬 디스커버리 도구들을 온전히 쥐여주어, 대화 중 원격에 등록된 플레이북(Playbook) 지식을 스스로 검색해서 동적으로 장착하여 가동할 수 있는 자율 행동권이 확보됩니다.
 
 ### A. 터미널 대화형 CLI 모드 진입
 터미널창에서 실시간 채팅 형태로 에이전트에게 리소스 모니터링 및 조회를 실행하게 하려면:
@@ -77,22 +90,22 @@ adk --help
 adk run --disable_features=JSON_SCHEMA_FOR_FUNC_DECL --enable_features=SKILL_TOOLSET .
 ```
 
-### B. 단발성 1회형 쿼리 실행
-대화 모드로 들어가지 않고, 특정 질문에 대한 답변만 터미널에 즉시 뽑아내고 종료하려면:
-```bash
-adk run --disable_features=JSON_SCHEMA_FOR_FUNC_DECL --enable_features=SKILL_TOOLSET . "GKE node upgrade 스킬이 있는지 검색해줘"
-```
-
-### C. 개발자 전용 대화형 웹 UI 실행
+### B. 대화형 웹 UI 실행
 배포용 FastAPI 서버를 백그라운드에 띄우고, 아름다운 웹 채팅 패널 창을 오픈하려면:
 ```bash
 adk web --disable_features=JSON_SCHEMA_FOR_FUNC_DECL --enable_features=SKILL_TOOLSET .
 ```
 서버 부트스트랩이 완료되면 터미널에 출력된 웹 브라우저 주소(기본값 `http://127.0.0.1:8086/dev-ui/`)로 접속합니다.
 
+
+<br/>
+
+---
 ---
 
-## 🚀 AgentPlatform 프로덕션 무중단 배포
+<br/>
+
+## 🚀 AgentPlatform 배포
 
 서버리스 프로덕션 환경에 에이전트를 상시 구동형 서비스로 안착시키기 위해 구글 **에이전트 플랫폼(Agent Platform - Reasoning Engine)** 서버 인프라에 원클릭 업로드 배포합니다.
 
@@ -120,11 +133,6 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} --member="serviceAccount:${
 
 # 4. 로컬 아티팩트 임시 보관용 GCS 버킷 읽기/쓰기 권한
 gcloud projects add-iam-policy-binding ${PROJECT_ID} --member="serviceAccount:${SA_EMAIL}" --role="roles/storage.objectAdmin"
-
-# 5. 배포를 요청하는 본인 개발자 개인 구글 계정에 서비스 계정 사용 자격 위임
-gcloud iam service-accounts add-iam-policy-binding ${SA_EMAIL} \
-    --member="user:YOUR_GOOGLE_EMAIL@google.com" \
-    --role="roles/iam.serviceAccountUser"
 ```
 
 ### 2. 배포 스크립트 원클릭 실행
@@ -133,15 +141,20 @@ gcloud iam service-accounts add-iam-policy-binding ${SA_EMAIL} \
 ```bash
 uv run agent_platform/runtime.py
 ```
-
-* **동작 방식 (통합 원클릭 활성화)**:
-  - **동시 기동 메커니즘**: 본 스크립트는 단 한 번의 API 호출을 통해 에이전트 코드 패키지를 압축 업로드(staging)하고 배포합니다. 그와 동시에 원격 컨테이너 기동 순간에 **GCP Spanner 영구 세션 추적 데이터베이스**와 **자체 내장형 제로셋업 메모리 뱅크(장기 기억 장치)**를 100% 자동으로 결합하여 완전 무중단 가동을 시작합니다!
   
 배포가 성공하면 콘솔에 고유 원격 리소스 URI 주소가 출력됩니다: `projects/{project_number}/locations/us-central1/reasoningEngines/{engine_id}`
 
+<br/>
+
+---
 ---
 
-## 🛠️ 스킬 레지스트리 플레이북 제어 CLI 행정 도구
+<br/>
+
+## 🛠️ Gemini Enterprise Skill Registy 관리 도구
+
+> [!NOTE]
+> 본 도구는 **AgentPlatform 배포(`runtime.py`) 파이프라인과는 완전히 독립적으로 동작하는 별개의 관리용 CLI 도구**입니다. SRE 관리자가 원격 스킬 레지스트리(Playbook Database) 내의 지식을 상시 등록, 조회, 삭제 및 RAG 검색 테스트를 수행할 때 사용합니다.
 
 SRE 관리자를 위하여, 의미론적으로 탐색하여 동적으로 꺼내 쓸 수 있는 SRE 플레이북 지식 데이터베이스를 제어하는 전용 CLI 도구 `agent_platform/skill_registry.py`를 제공합니다.
 
@@ -188,14 +201,6 @@ uv run agent_platform/skill_registry.py import --github-url "https://github.com/
 
 ---
 
-## ⚙️ 핵심 피처 플래그(Feature Flags) 동작 원리 기술 설명
-
-*   **`--disable_features=JSON_SCHEMA_FOR_FUNC_DECL`** *(치명적인 컨텍스트 폭발 우회 플래그)*:
-    *   **도입 이유**: ADK의 실험용 기능인 JSON 스키마 자동 파서 모듈은 GKE나 Kubernetes API처럼 무한 루프성 Pydantic 계층 구조를 지닌 리소스 명세를 만날 경우, 이를 해석하기 위해 스키마를 무한대로 복제/전개하는 치명적인 버그가 있습니다.
-    *   **효과**: 이 옵션을 반드시 기입해 꺼주면 에이전트가 표준 평탄형(Flat) 스키마 선언 구조로 안정적으로 동작하여, 기존의 프롬프트 토큰 누수량(**약 130만 토큰**)을 미세한 깃털 등급 수준(**약 1만 토큰**)으로 극적으로 다이어트시켜 에러 없는 엄청난 초고속 응답 속도를 보장합니다.
-*   **`--enable_features=SKILL_TOOLSET`** *(스킬 탐색기)*:
-    *   **도입 이유**: 엔터프라이즈 스킬 셋 가동용 모듈을 활성화합니다.
-    *   **효과**: 오케스트레이터 에이전트에게 스킬 디스커버리 도구들을 온전히 쥐여주어, 대화 중 원격에 등록된 플레이북(Playbook) 지식을 스스로 검색해서 동적으로 장착하여 가동할 수 있는 자율 행동권이 확보됩니다.
 
 ---
 
