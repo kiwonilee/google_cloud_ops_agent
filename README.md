@@ -151,6 +151,91 @@ uv run agent_platform/runtime.py
 
 <br/>
 
+## 🔗 배포된 AgentPlatform (Reasoning Engine) API 호출 가이드
+
+본 에이전트는 Google ADK 프레임워크를 기반으로 빌드되어 배포되므로, REST API 호출 시 일반적인 `:query`와 스트리밍용 `:streamQuery` 인터페이스를 모두 완벽 지원합니다.
+
+### A. 일회성 질문 (One-off Question - Non-streaming & Streaming)
+이전 대화 맥락이 필요 없는 독립 질문의 경우, 세션 ID를 본문에 제공하지 않으면 자동으로 매번 고유한 새 세션이 내부 생성되어 호출됩니다.
+
+#### 1. 일회성 스트리밍 호출 (추천 - streamQuery)
+응답을 실시간 데이터 스트림(SSE) 형태로 즉각 전송받습니다.
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  https://us-central1-aiplatform.googleapis.com/v1beta1/projects/{PROJECT_NUMBER}/locations/us-central1/reasoningEngines/{REASONING_ENGINE_ID}:streamQuery \
+  -d '{
+    "class_method": "async_stream_query",
+    "input": {
+      "user_id": "test_user",
+      "message": "{PROJECT_ID} 프로젝트에 배포된 GKE 클러스터 목록이 어떻게 돼?"
+    }
+  }'
+```
+
+---
+
+### B. 연속 대화 (Continuous Conversation - 멀티턴 유지)
+대화의 전후 흐름과 컨텍스트(맥락)를 완벽히 유지하기 위해, 고유 세션 ID를 발급받아 이를 들고 다니며 멀티턴 대화를 수행합니다.
+
+#### 1단계: 최초 1회 대화 세션 생성
+세션 관리 서비스(`create_session`)를 호출하여 전용 `session_id`를 새로 발급받습니다.
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  https://us-central1-aiplatform.googleapis.com/v1beta1/projects/{PROJECT_NUMBER}/locations/us-central1/reasoningEngines/{REASONING_ENGINE_ID}:query \
+  -d '{
+    "class_method": "create_session",
+    "input": {
+      "user_id": "test_user"
+    }
+  }'
+```
+* *(응답 JSON 내의 `"id"` 값을 복사해 아래 단계의 `session_id`로 사용합니다.)*
+
+#### 2단계: 첫 번째 질문 던지기
+생성된 세션 ID를 Payload의 `"session_id"` 값에 기입해 질문을 시작합니다.
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  https://us-central1-aiplatform.googleapis.com/v1beta1/projects/{PROJECT_NUMBER}/locations/us-central1/reasoningEngines/{REASONING_ENGINE_ID}:streamQuery \
+  -d '{
+    "class_method": "async_stream_query",
+    "input": {
+      "user_id": "test_user",
+      "session_id": "발급받은_세션_ID_여기에_기입",
+      "message": "{PROJECT_ID} 프로젝트에 배포된 GKE 클러스터에 대해 알려줘."
+    }
+  }'
+```
+
+#### 3단계: 동일한 세션 ID로 꼬리 질문하기 (컨텍스트 유지 검증)
+이전 정보를 바탕으로 지칭어나 지시 대명사("그것", "그 클러스터")를 사용해 연속된 질문을 던집니다. 동일한 세션 ID가 바인딩되므로 이전 메모리를 완벽히 참조합니다.
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  https://us-central1-aiplatform.googleapis.com/v1beta1/projects/{PROJECT_NUMBER}/locations/us-central1/reasoningEngines/{REASONING_ENGINE_ID}:streamQuery \
+  -d '{
+    "class_method": "async_stream_query",
+    "input": {
+      "user_id": "test_user",
+      "session_id": "발급받은_세션_ID_여기에_기입",
+      "message": "그 클러스터의 현재 작동 노드 개수가 총 몇 개라고 했었지?"
+    }
+  }'
+```
+
+<br/>
+
+---
+---
+
+<br/>
+
 ## 🛠️ Gemini Enterprise Skill Registy 관리 도구
 
 > [!NOTE]
